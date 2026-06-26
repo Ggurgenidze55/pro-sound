@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { GoogleGenerativeAI } from '@google/generative-ai'
+import Groq from 'groq-sdk'
 
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!)
+export const runtime = 'nodejs'
 
 export async function POST(req: NextRequest) {
   try {
@@ -11,9 +11,14 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Missing data' }, { status: 400 })
     }
 
-    const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' })
-
-    const prompt = `შენ ხარ Pro Sound-ის ტექნიკური მენეჯერი. გაანალიზე ბენდის რაიდერი და შეადარე Pro Sound-ის ინვენტარს.
+    const client = new Groq({ apiKey: process.env.GROQ_API_KEY })
+    const completion = await client.chat.completions.create({
+      model: 'llama-3.3-70b-versatile',
+      max_tokens: 2000,
+      messages: [
+        {
+          role: 'user',
+          content: `შენ ხარ Pro Sound-ის ტექნიკური მენეჯერი. გაანალიზე ბენდის რაიდერი და შეადარე Pro Sound-ის ინვენტარს.
 
 Pro Sound-ის ინვენტარი:
 ${inventoryText}
@@ -32,10 +37,12 @@ status-ის წესები:
 - "nothave" = საერთოდ არ გვაქვს და ალტერნატივაც არ გამოდგება
 - "alt" = ზუსტი მოდელი/რაოდენობა არ გვაქვს, მაგრამ ალტერნატივა გვაქვს (note-ში მიუთითე რომელი)
 
-მხოლოდ JSON დააბრუნე, სხვა ტექსტი არ. JSON-ი უნდა იყოს ვალიდური.`
+მხოლოდ JSON დააბრუნე, სხვა ტექსტი არ. JSON-ი უნდა იყოს ვალიდური.`,
+        },
+      ],
+    })
 
-    const result = await model.generateContent(prompt)
-    const text = result.response.text()
+    const text = completion.choices[0]?.message?.content || ''
     const clean = text.replace(/```json|```/g, '').trim()
     const results = JSON.parse(clean)
 
