@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import type { Inventory } from '@/app/page'
 import styles from './RiderTab.module.css'
 
@@ -13,12 +13,38 @@ type RiderResult = {
 export default function RiderTab({ inventory }: { inventory: Inventory }) {
   const [riderText, setRiderText] = useState('')
   const [loading, setLoading] = useState(false)
+  const [parsing, setParsing] = useState(false)
   const [results, setResults] = useState<RiderResult[] | null>(null)
   const [error, setError] = useState('')
+  const [fileName, setFileName] = useState('')
+  const fileRef = useRef<HTMLInputElement>(null)
 
   const inventoryText = Object.entries(inventory)
     .map(([cat, items]) => `${cat}: ${items.map(i => `${i.name} (×${i.qty})`).join(', ')}`)
     .join('\n')
+
+  async function handleFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setParsing(true)
+    setError('')
+    setFileName(file.name)
+
+    try {
+      const form = new FormData()
+      form.append('file', file)
+      const res = await fetch('/api/parse-file', { method: 'POST', body: form })
+      const data = await res.json()
+      if (data.error) throw new Error(data.error)
+      setRiderText(data.text)
+    } catch (e: any) {
+      setError(e.message || 'ფაილის წაკითხვა ვერ მოხერხდა')
+      setFileName('')
+    } finally {
+      setParsing(false)
+      if (fileRef.current) fileRef.current.value = ''
+    }
+  }
 
   async function analyze() {
     if (!riderText.trim()) return
@@ -42,6 +68,13 @@ export default function RiderTab({ inventory }: { inventory: Inventory }) {
     }
   }
 
+  function clear() {
+    setRiderText('')
+    setResults(null)
+    setFileName('')
+    setError('')
+  }
+
   const counts = results
     ? {
         have: results.filter(r => r.status === 'have').length,
@@ -54,11 +87,31 @@ export default function RiderTab({ inventory }: { inventory: Inventory }) {
     <div>
       <p className={styles.sectionLabel}>ბენდის ტექნიკური რაიდერი</p>
 
+      <div className={styles.uploadArea}>
+        <input
+          ref={fileRef}
+          type="file"
+          id="fileInput"
+          className={styles.fileInput}
+          accept=".pdf,.docx,.doc,.xlsx,.xls,.ods,.csv,.txt,.md"
+          onChange={handleFile}
+        />
+        <label htmlFor="fileInput" className={styles.uploadLabel}>
+          {parsing ? (
+            <span>⏳ ფაილი იხსნება...</span>
+          ) : fileName ? (
+            <span>📄 {fileName}</span>
+          ) : (
+            <span>📎 ატვირთე ფაილი — PDF, Excel, Word, CSV...</span>
+          )}
+        </label>
+      </div>
+
       <textarea
         className={styles.textarea}
         value={riderText}
         onChange={e => setRiderText(e.target.value)}
-        placeholder={`მაგ:\n- 2x Shure SM58 vocal microphones\n- 4x DI boxes\n- 1x Yamaha QL5 mixing console\n- 6x Monitor wedges\n- Wireless IEM system\n...`}
+        placeholder={`ან ხელით ჩაწერე:\n- 2x Shure SM58 vocal microphones\n- 4x DI boxes\n- 1x Yamaha QL5 mixing console\n- 6x Monitor wedges\n- Wireless IEM system\n...`}
         rows={8}
       />
 
@@ -66,15 +119,12 @@ export default function RiderTab({ inventory }: { inventory: Inventory }) {
         <button
           className={styles.btnPrimary}
           onClick={analyze}
-          disabled={loading || !riderText.trim()}
+          disabled={loading || parsing || !riderText.trim()}
         >
           {loading ? 'ანალიზი...' : '⚡ კონტრ-რაიდერის გენერაცია'}
         </button>
         {(riderText || results) && (
-          <button
-            className={styles.btnSecondary}
-            onClick={() => { setRiderText(''); setResults(null) }}
-          >
+          <button className={styles.btnSecondary} onClick={clear}>
             გასუფთავება
           </button>
         )}
