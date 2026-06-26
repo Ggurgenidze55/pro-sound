@@ -3,11 +3,6 @@ import Groq from 'groq-sdk'
 
 export const runtime = 'nodejs'
 
-// keep under ~6000 chars to stay within free tier token limits
-function trimText(text: string, maxChars: number): string {
-  if (text.length <= maxChars) return text
-  return text.slice(0, maxChars) + '\n...[truncated]'
-}
 
 export async function POST(req: NextRequest) {
   try {
@@ -16,9 +11,6 @@ export async function POST(req: NextRequest) {
     if (!riderText || !inventoryText) {
       return NextResponse.json({ error: 'Missing data' }, { status: 400 })
     }
-
-    const trimmedInventory = trimText(inventoryText, 5000)
-    const trimmedRider = trimText(riderText, 3000)
 
     const client = new Groq({ apiKey: process.env.GROQ_API_KEY })
     const completion = await client.chat.completions.create({
@@ -34,10 +26,10 @@ export async function POST(req: NextRequest) {
           content: `Compare this band rider against Pro Sound inventory. Return a JSON array only.
 
 INVENTORY:
-${trimmedInventory}
+${inventoryText}
 
 RIDER REQUIREMENTS:
-${trimmedRider}
+${riderText}
 
 Return JSON array:
 [{"item":"equipment name","status":"have|nothave|alt","note":"short note in Georgian"}]
