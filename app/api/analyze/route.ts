@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
-import Anthropic from '@anthropic-ai/sdk'
+import { GoogleGenerativeAI } from '@google/generative-ai'
 
-const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
+const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!)
 
 export async function POST(req: NextRequest) {
   try {
@@ -11,13 +11,9 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Missing data' }, { status: 400 })
     }
 
-    const message = await client.messages.create({
-      model: 'claude-sonnet-4-6',
-      max_tokens: 1500,
-      messages: [
-        {
-          role: 'user',
-          content: `შენ ხარ Pro Sound-ის ტექნიკური მენეჯერი. გაანალიზე ბენდის რაიდერი და შეადარე Pro Sound-ის ინვენტარს.
+    const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' })
+
+    const prompt = `შენ ხარ Pro Sound-ის ტექნიკური მენეჯერი. გაანალიზე ბენდის რაიდერი და შეადარე Pro Sound-ის ინვენტარს.
 
 Pro Sound-ის ინვენტარი:
 ${inventoryText}
@@ -36,16 +32,10 @@ status-ის წესები:
 - "nothave" = საერთოდ არ გვაქვს და ალტერნატივაც არ გამოდგება
 - "alt" = ზუსტი მოდელი/რაოდენობა არ გვაქვს, მაგრამ ალტერნატივა გვაქვს (note-ში მიუთითე რომელი)
 
-მხოლოდ JSON დააბრუნე, სხვა ტექსტი არ. JSON-ი უნდა იყოს ვალიდური.`,
-        },
-      ],
-    })
+მხოლოდ JSON დააბრუნე, სხვა ტექსტი არ. JSON-ი უნდა იყოს ვალიდური.`
 
-    const text = message.content
-      .filter(b => b.type === 'text')
-      .map(b => b.text)
-      .join('')
-
+    const result = await model.generateContent(prompt)
+    const text = result.response.text()
     const clean = text.replace(/```json|```/g, '').trim()
     const results = JSON.parse(clean)
 
